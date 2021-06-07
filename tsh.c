@@ -12,7 +12,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
-#include <csapp.h>
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
@@ -56,7 +55,7 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 /* Function prototypes */
 
 /* Helper functions I created. */
-
+pid_t Fork(void);
 
 /* Here are the functions that you will implement */
 void eval(char *cmdline);
@@ -535,5 +534,12 @@ void sigquit_handler(int sig)
     exit(1);
 }
 
-
-
+/* 
+ * fork function with error handling, as per the book.
+ */
+pid_t Fork(void){
+    pid_t pid;
+    if((pid = fork()) < 0)
+        unix_error("Fork error");
+    return pid;
+}
