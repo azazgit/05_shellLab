@@ -187,8 +187,16 @@ void eval(char *cmdline)
                 exit(0);
             }
         }
+
+        /* Parent waits for foreground job to terminate. */
+        if (!bg) {
+            int status;
+            if (waitpid(pid, &status, 0) < 0)
+                    unix_error("waitfg: waitpid error");            
+        }
+        else
+            printf("[1] (%d) %s", pid, cmdline);
     }
-    
     
     return;
 }
