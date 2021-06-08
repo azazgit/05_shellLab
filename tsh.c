@@ -376,11 +376,12 @@ void sigchld_handler(int sig) {
  */
 void sigint_handler(int sig) {
 
-    // Job [1] (684115) terminated by signal 2
+    /* Get the pid of fg job. Then delete that job. */
     pid_t pid = fgpid(jobs);
-    int jid = pid2jid(pid);
-
     deletejob(jobs, pid);
+    
+    // Job [1] (684115) terminated by signal 2
+    int jid = pid2jid(pid);
     printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
 
 }
@@ -391,9 +392,20 @@ void sigint_handler(int sig) {
  *     the user types ctrl-z at the keyboard. Catch it and suspend the
  *     foreground job by sending it a SIGTSTP.  
  */
-void sigtstp_handler(int sig) 
-{
-    return;
+void sigtstp_handler(int sig) {
+
+    /* Get the pid of fg job. */
+    pid_t pid = fgpid(jobs);
+    
+    /* Update fg job's status to ST [stopped]. */
+    struct job_t * job;
+    job = getjobpid(jobs, pid);
+    job->state = ST;
+
+    // Job [2] (684321) stopped by signal 20
+    int jid = pid2jid(pid);
+    printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
+
 }
 
 /*********************
