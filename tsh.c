@@ -302,15 +302,20 @@ int parseline(const char *cmdline, char **argv)
  *    it immediately.  
  */
 int builtin_cmd(char **argv) {
+    
     if (!strcmp(argv[0], "quit")){ /* quit command */
         exit(0);
     }
-
-    if (!strcmp(argv[0], "jobs")){ /* jobs command */
+    else if (!strcmp(argv[0], "jobs")){ /* jobs command */
         listjobs(jobs);
         exit(0);
     }
-    
+    else if (!strcmp(argv[0], "fg")){ /* fg command */
+        // 
+    }
+    else if (!strcmp(argv[0], "bg")){ /* bg command */
+        //    
+    }
     return 0;     /* not a builtin command */
 }
 
