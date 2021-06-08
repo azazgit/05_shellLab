@@ -360,11 +360,8 @@ void sigchld_handler(int sig) {
     pid_t pid;
     int status;
 
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        
-        if (WIFEXITED(status)) {deletejob(jobs, pid);}
-
-        else {unix_error("waitpid error");}
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+        deletejob(jobs, pid);
     }
 }
 
@@ -378,10 +375,10 @@ void sigint_handler(int sig) {
 
     /* Get the pid of fg job. Then delete that job. */
     pid_t pid = fgpid(jobs);
-    deletejob(jobs, pid);
+    int jid = pid2jid(pid);
+    kill(-pid, SIGINT);
     
     // Job [1] (684115) terminated by signal 2
-    int jid = pid2jid(pid);
     printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
 
 }
@@ -401,6 +398,9 @@ void sigtstp_handler(int sig) {
     struct job_t * job;
     job = getjobpid(jobs, pid);
     job->state = ST;
+    
+    /* Send kill signal. */
+    kill(-pid, SIGTSTP);
 
     // Job [2] (684321) stopped by signal 20
     int jid = pid2jid(pid);
