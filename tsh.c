@@ -63,6 +63,7 @@ pid_t Fork(void);
 void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 void Sigemptyset(sigset_t *set);
 void Sigaddset(sigset_t *set, int signum); 
+pid_t Waitpid(pid_t pid, int *iptr, int options); 
 
 /* Here are the functions that you will implement */
 void eval(char *cmdline);
@@ -350,14 +351,16 @@ void waitfg(pid_t pid) {
  *     currently running children to terminate.  
  */
 void sigchld_handler(int sig) {
-    pid_t pid = wait(NULL);
-    deletejob(jobs, pid);
-    /*
+    pid_t pid;
     int status;
-    if (waitpid(pid, &status, 0) < 0) {
+
+    while ((pid = Waitpid(-1, &status, WNOHANG)) > 0) {
+        deletejob(jobs, pid);
+    /*
         unix_error("waitfg: waitpid error");
     }
     */
+    }
 }
 
 
@@ -614,7 +617,7 @@ void sigquit_handler(int sig)
 
 
 /* 
- * fork function with error handling, as per the book.
+ * fork() with error handling, as per the book.
  */
 pid_t Fork(void){
     pid_t pid;
@@ -624,7 +627,7 @@ pid_t Fork(void){
 }
 
 /*
- * sigprocmask with error handling, as per the book.
+ * sigprocmask() with error handling, as per the book.
  */
 void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
     if (sigprocmask(how, set, oldset) < 0) {
@@ -635,7 +638,7 @@ void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
 
 
 /*
- * sigaddset with error handling, as per the book.
+ * sigaddset() with error handling, as per the book.
  */
 void Sigaddset(sigset_t *set, int signum) {
     if (sigaddset(set, signum) < 0) {
@@ -643,8 +646,10 @@ void Sigaddset(sigset_t *set, int signum) {
     }
     return;
 }
+
+
 /*
- * sigemptyset with error handling, as per the book.
+ * sigemptyset() with error handling, as per the book.
  */
 void Sigemptyset(sigset_t *set) {
     if (sigemptyset(set) < 0) {
@@ -654,4 +659,16 @@ void Sigemptyset(sigset_t *set) {
 }
 
 
+/*
+ * waitpid() with error handling, as per the book.
+ */
+pid_t Waitpid(pid_t pid, int *iptr, int options) {
+    
+    pid_t retpid;
 
+    if ((retpid  = waitpid(pid, iptr, options)) < 0) {
+	    unix_error("Waitpid error");
+    }
+    
+    return(retpid);
+}
