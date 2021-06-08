@@ -205,6 +205,9 @@ void eval(char *cmdline) {
             /* Unblock SIGCHLD in child process*/
             Sigprocmask(SIG_SETMASK, &prev, NULL);
 
+            /* Ensure only one process in the foreground process group. */
+            setpgid(0,0);
+
             /* ... and use exec func to run user's job. */ 
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
@@ -340,10 +343,6 @@ void waitfg(pid_t pid) {
         sleep(1);
     }
     return;
-/*
-    while(fgpid(jobs) == pid) {
-        sleep(1);
-    }*/
 }
 
 /*****************
