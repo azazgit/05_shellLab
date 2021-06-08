@@ -360,7 +360,7 @@ void sigchld_handler(int sig) {
     pid_t pid;
     int status;
 
-    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         deletejob(jobs, pid);
     }
 }
