@@ -374,10 +374,14 @@ void sigchld_handler(int sig) {
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.  
  */
-void sigint_handler(int sig) 
-{
-    printf("sigint received\n");
-    return;
+void sigint_handler(int sig) {
+
+    // Job [1] (684115) terminated by signal 2
+    pid_t pid = fgpid(jobs);
+    int jid = pid2jid(pid);
+    printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
+    exit(0);
+
 }
 
 
