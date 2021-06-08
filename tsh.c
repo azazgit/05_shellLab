@@ -60,6 +60,9 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 
 /* Helper functions I created. */
 pid_t Fork(void);
+void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+void Sigemptyset(sigset_t *set);
+void Sigaddset(sigset_t *set, int signum); 
 
 /* Here are the functions that you will implement */
 void eval(char *cmdline);
@@ -185,15 +188,22 @@ void eval(char *cmdline) {
     /* Ignore empty lines. */
     if (argv[0] == NULL){return;}
 
-    struct job_t * job;  
-    
     /* If not a builtin command ... */
     if (!builtin_cmd(argv)) {
-    
+        
+        /* Avoid race condition. Block sigchld signal until after addjobs(). */
+        sigset_t mask, prev;
+        Sigemptyset(&mask);
+        Sigaddset(&mask, SIGCHLD);
+        Sigprocmask(SIG_BLOCK, &mask, &prev);
+
         /* ... fork child process ... */
         pid_t pid;
         if((pid = Fork()) == 0) {
             
+            /* Unblock SIGCHLD in child process*/
+            Sigprocmask(SIG_SETMASK, &prev, NULL);
+
             /* ... and use exec func to run user's job. */ 
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
@@ -203,13 +213,17 @@ void eval(char *cmdline) {
         
         /* Add job to jobs list. */
         addjob(jobs, pid, bg ? BG : FG, cmdline);
-
+        
+        /* Unblock SIGCHLD now that job has been added to jobs list. */
+        Sigprocmask(SIG_SETMASK, &prev, NULL);
+        
         /* Parent waits for foreground job to terminate. */
         if (!bg) {
             waitfg(pid);
         }
         else {
             
+            struct job_t * job;  
             job = getjobpid(jobs, pid);
             printf("[%d] (%d) %s", job->jid, job->pid, cmdline);
             
@@ -379,7 +393,6 @@ void clearjob(struct job_t *job) {
     job->state = UNDEF;
     job->cmdline[0] = '\0';
 }
-
 
 
 /* initjobs - Initialize the job list */
@@ -604,3 +617,36 @@ pid_t Fork(void){
         unix_error("Fork error");
     return pid;
 }
+
+/*
+ * sigprocmask with error handling, as per the book.
+ */
+void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
+    if (sigprocmask(how, set, oldset) < 0) {
+	    unix_error("Sigprocmask error");
+    }
+    return;
+}
+
+
+/*
+ * sigaddset with error handling, as per the book.
+ */
+void Sigaddset(sigset_t *set, int signum) {
+    if (sigaddset(set, signum) < 0) {
+	    unix_error("Sigaddset error");
+    }
+    return;
+}
+/*
+ * sigemptyset with error handling, as per the book.
+ */
+void Sigemptyset(sigset_t *set) {
+    if (sigemptyset(set) < 0) {
+	    unix_error("Sigemptyset error");
+    }
+    return;
+}
+
+
+
