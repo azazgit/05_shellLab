@@ -373,12 +373,12 @@ void sigchld_handler(int sig) {
  */
 void sigint_handler(int sig) {
 
-    /* Get the pid of fg job. Then delete that job. */
+    /* Send SIGINT sig to fg job. Job's deleted when parent handles sigchld. */
     pid_t pid = fgpid(jobs);
-    int jid = pid2jid(pid);
     kill(-pid, SIGINT);
     
     // Job [1] (684115) terminated by signal 2
+    int jid = pid2jid(pid);
     printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
 
 }
@@ -399,7 +399,7 @@ void sigtstp_handler(int sig) {
     job = getjobpid(jobs, pid);
     job->state = ST;
     
-    /* Send kill signal. */
+    /* Send SIGTSTP signal to process group of fg job. */
     kill(-pid, SIGTSTP);
 
     // Job [2] (684321) stopped by signal 20
