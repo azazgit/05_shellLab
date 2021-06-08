@@ -340,7 +340,7 @@ void waitfg(pid_t pid) {
         sleep(1);
     }
     return;
-    /*
+/*
     while(fgpid(jobs) == pid) {
         sleep(1);
     }*/
@@ -361,12 +361,11 @@ void sigchld_handler(int sig) {
     pid_t pid;
     int status;
 
-    while ((pid = Waitpid(-1, &status, WNOHANG)) > 0) {
-        deletejob(jobs, pid);
-    /*
-        unix_error("waitfg: waitpid error");
-    }
-    */
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        
+        if (WIFEXITED(status)) {deletejob(jobs, pid);}
+
+        else {unix_error("waitpid error");}
     }
 }
 
@@ -633,6 +632,7 @@ pid_t Fork(void){
     return pid;
 }
 
+
 /*
  * sigprocmask() with error handling, as per the book.
  */
@@ -664,6 +664,7 @@ void Sigemptyset(sigset_t *set) {
     }
     return;
 }
+
 
 
 /*
