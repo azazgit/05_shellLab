@@ -350,18 +350,31 @@ void do_bgfg(char **argv) {
         pid = atoi(argv[1]);
     }
     
-    /* Send SIGCONT signal to job. */
-    kill(pid, SIGCONT);
-    
-    /* Parent waits for foreground job to terminate. */
+    /* Update jobs list. If existing fg job, then fg -> bg. This job -> fg. */
+    struct job_t * thisJob = getjobpid(jobs, pid);
     if (!bg) {
+    
+        /* If currently, there is a fg job... */
+        pid_t fgJobPid = fgpid(jobs); /* ... get pid of fg job. */
+        if (fgJobPid) {
+            struct job_t * fgJob = getjobpid(jobs, fgJobPid); /* Get fg job. */
+            fgJob->state = BG; /* Change state from fg job to bg job. */
+            thisJob->state = FG; /* Change state of this job to fg. */
+        }
+        else {
+            thisJob->state = FG; /* Change state of this job to fg. */
+        }
+
+        /* Parent waits for foreground job to terminate. */
         waitfg(pid);
     }
     else {
-        struct job_t * job;
-        job = getjobpid(jobs, pid);
-        printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+        thisJob->state = BG;
+        printf("[%d] (%d) %s", thisJob->jid, thisJob->pid, thisJob->cmdline);
     }
+    
+    /* Send SIGCONT signal to job. */
+    kill(pid, SIGCONT);
 }
 
 
@@ -736,8 +749,7 @@ pid_t jid2pid(int jid) {
     
     if (jid < 1) {return 0;}
     
-    int jidMax = maxjid(jobs);
-    for (int i = 1; i <= jidMax; i++) {
+    for (int i = 0; i < MAXJOBS; i++) {
         if (jobs[i].jid == jid) {
             return jobs[i].pid;
         }
