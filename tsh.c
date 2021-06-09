@@ -319,18 +319,13 @@ int builtin_cmd(char **argv) {
     }
     
     else if (!strcmp(argv[0], "fg")){ /* fg command */
-        /* Make sure valid 2nd argument was provided in cmd line. */
-        if (valid2ndArg(argv, "fg")) { 
-            do_bgfg(argv);
-            return 1;
-        }
+        do_bgfg(argv);
+        return 1;
+    }
 
     else if (!strcmp(argv[0], "bg")){ /* bg command */
-        /* Make sure valid 2nd argument was provided in cmd line. */
-        if (valid2ndArg(argv, "bg")) {
-            do_bgfg(argv);
-            return 1;
-        }
+        do_bgfg(argv);
+        return 1;
     }
 
     return 0;     /* not a builtin command */
@@ -342,43 +337,70 @@ int builtin_cmd(char **argv) {
  */
 void do_bgfg(char **argv) {
 
-    /* Is it a fg or bg job? argv[0] has format "bg" or 'fg". */
+    /* Check argv[0]. Is it a fg or bg job? */
     int bg;
     if (!strcmp(argv[0], "bg")) {bg = 1;}
     else {bg = 0;}
+    
+    /* Check argv[1]. Is arg 2 provided? */
+    if (!argv[1]) {
+        printf("%s command requires PID or %%jobid argument\n", argv[0]);
+        return;
+    }
 
-
-    /* Extract pid. If % then from jid, else from cmd line. */
+    /* Arg 2 is provided. Is it a valid pid, jid or neither? */
+    struct job_t * thisJob; 
+    int jid;
     pid_t pid;
-    char char1 = *argv[1];
-    if (char1 == '%') { //jid
-        char * jid_ptr = argv[1] + 1 * sizeof(char);
-        int jid = atoi(jid_ptr);
-        pid = jid2pid(jid);
-    }
-    else { //pid
+    
+    /* If arg 2 is a jid. */
+    char char1 = *argv[1]; /* 1st char of arg 2. */
+    if (char1 == '%') {
+            
+        /* Check that jid exists in jobs list. */
+        char * jidPtr = (argv[1] + 1 * sizeof(char));
+        jid = atoi(jidPtr);
+        thisJob = getjobjid(jobs, jid);
+        if (!thisJob) { /* jid not valid. */
+            printf("%s: No such job\n", argv[1]);
+            return;
+        }
+        pid = thisJob->pid; /* needed for kill() later. */
+    } 
+    /* Else if arg 2 is pid, find the job with this pid. */
+    else if (isdigit(char1)) { /* pids start with 1-9 */
+        
+        /* Check that pid exists in jobs list. */
         pid = atoi(argv[1]);
-    }
-    
-    /* Update jobs list. If existing fg job, then fg -> bg. This job -> fg. */
-    struct job_t * thisJob = getjobpid(jobs, pid);
-    if (!bg) {
-    
-        /* If currently, there is a fg job... */
-        pid_t fgJobPid = fgpid(jobs); /* ... get pid of fg job. */
-        if (fgJobPid) {
-            struct job_t * fgJob = getjobpid(jobs, fgJobPid); /* Get fg job. */
-            fgJob->state = BG; /* Change state from fg job to bg job. */
-            thisJob->state = FG; /* Change state of this job to fg. */
+        thisJob = getjobpid(jobs, pid);
+        if(!thisJob) { /* pid not valid. */
+             printf("(%s): No such process\n", argv[1]);
+             return;
         }
-        else {
-            thisJob->state = FG; /* Change state of this job to fg. */
-        }
-
-        /* Parent waits for foreground job to terminate. */
-        waitfg(pid);
     }
+    /* Otherwise, arg 2 is neither a pid or jid. */
     else {
+        printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+        return;
+    }
+
+    /* Update jobs list. */
+    if (!bg) { /* This is a fg job.*/
+    
+        /* If currently there is a fg job. */
+        pid_t fgJobPid = fgpid(jobs); 
+        if (fgJobPid) {
+            struct job_t * fgJob = getjobpid(jobs, fgJobPid);
+            fgJob->state = BG; 
+            thisJob->state = FG;
+        }
+        else { 
+            thisJob->state = FG; 
+        }
+        
+        waitfg(pid); /* Parent waits for foreground job to terminate. */
+    }
+    else { /* This is a bg job. */
         thisJob->state = BG;
         printf("[%d] (%d) %s", thisJob->jid, thisJob->pid, thisJob->cmdline);
     }
@@ -766,4 +788,4 @@ pid_t jid2pid(int jid) {
     }
     return 0;
 }
-    
+
