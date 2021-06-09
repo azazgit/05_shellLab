@@ -3,6 +3,7 @@
  * 
  * <Put your name and login ID here>
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -64,6 +65,7 @@ void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 void Sigemptyset(sigset_t *set);
 void Sigaddset(sigset_t *set, int signum); 
 pid_t Waitpid(pid_t pid, int *iptr, int options); 
+pid_t jid2pid(int jid);
 
 /* Here are the functions that you will implement */
 void eval(char *cmdline);
@@ -312,13 +314,15 @@ int builtin_cmd(char **argv) {
     }
     else if (!strcmp(argv[0], "jobs")){ /* jobs command */
         listjobs(jobs);
-        exit(0);
+        return 1;
     }
     else if (!strcmp(argv[0], "fg")){ /* fg command */
-        // 
+        do_bgfg(argv);
+        return 1;
     }
     else if (!strcmp(argv[0], "bg")){ /* bg command */
-        //    
+        do_bgfg(argv);
+        return 1;
     }
     return 0;     /* not a builtin command */
 }
@@ -327,9 +331,37 @@ int builtin_cmd(char **argv) {
 /* 
  * do_bgfg - Execute the builtin bg and fg commands
  */
-void do_bgfg(char **argv) 
-{
-    return;
+void do_bgfg(char **argv) {
+
+    /* Is it a fg or bg job? argv[0] has format "bg" or 'fg". */
+    int bg;
+    if (!strcmp(argv[0], "bg")) {bg = 1;}
+    else {bg = 0;}
+
+    /* Extract pid. If % then from jid, else from cmd line. */
+    pid_t pid;
+    char char1 = *argv[1];
+    if (char1 == '%') { //jid
+        char * jid_ptr = argv[1] + 1 * sizeof(char);
+        int jid = atoi(jid_ptr);
+        pid = jid2pid(jid);
+    }
+    else { //pid
+        pid = atoi(argv[1]);
+    }
+    
+    /* Send SIGCONT signal to job. */
+    kill(pid, SIGCONT);
+    
+    /* Parent waits for foreground job to terminate. */
+    if (!bg) {
+        waitfg(pid);
+    }
+    else {
+        struct job_t * job;
+        job = getjobpid(jobs, pid);
+        printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+    }
 }
 
 
@@ -344,6 +376,7 @@ void waitfg(pid_t pid) {
     }
     return;
 }
+
 
 /*****************
  * Signal handlers
@@ -411,6 +444,7 @@ void sigtstp_handler(int sig) {
 /*********************
  * End signal handlers
  *********************/
+
 
 /***********************************************
  * Helper routines that manipulate the job list
@@ -696,3 +730,18 @@ pid_t Waitpid(pid_t pid, int *iptr, int options) {
     
     return(retpid);
 }
+
+/* jid2pid - Map job ID to process ID. */
+pid_t jid2pid(int jid) {
+    
+    if (jid < 1) {return 0;}
+    
+    int jidMax = maxjid(jobs);
+    for (int i = 1; i <= jidMax; i++) {
+        if (jobs[i].jid == jid) {
+            return jobs[i].pid;
+        }
+    }
+    return 0;
+}
+    
