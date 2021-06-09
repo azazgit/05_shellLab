@@ -312,18 +312,27 @@ int builtin_cmd(char **argv) {
     if (!strcmp(argv[0], "quit")){ /* quit command */
         exit(0);
     }
+    
     else if (!strcmp(argv[0], "jobs")){ /* jobs command */
         listjobs(jobs);
         return 1;
     }
+    
     else if (!strcmp(argv[0], "fg")){ /* fg command */
-        do_bgfg(argv);
-        return 1;
-    }
+        /* Make sure valid 2nd argument was provided in cmd line. */
+        if (valid2ndArg(argv, "fg")) { 
+            do_bgfg(argv);
+            return 1;
+        }
+
     else if (!strcmp(argv[0], "bg")){ /* bg command */
-        do_bgfg(argv);
-        return 1;
+        /* Make sure valid 2nd argument was provided in cmd line. */
+        if (valid2ndArg(argv, "bg")) {
+            do_bgfg(argv);
+            return 1;
+        }
     }
+
     return 0;     /* not a builtin command */
 }
 
@@ -337,6 +346,7 @@ void do_bgfg(char **argv) {
     int bg;
     if (!strcmp(argv[0], "bg")) {bg = 1;}
     else {bg = 0;}
+
 
     /* Extract pid. If % then from jid, else from cmd line. */
     pid_t pid;
