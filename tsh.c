@@ -213,7 +213,7 @@ void eval(char *cmdline) {
             /* ... and use exec func to run user's job. */ 
             if (execve(argv[0], argv, environ) < 0) {
                 printf("%s: Command not found.\n", argv[0]);
-                exit(0);
+                exit(1);
             }
         }
         
