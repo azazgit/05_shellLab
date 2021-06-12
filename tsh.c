@@ -64,6 +64,7 @@ pid_t Fork(void);
 void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 void Sigemptyset(sigset_t *set);
 void Sigaddset(sigset_t *set, int signum); 
+void Sigfillset(sigset_t * set);
 pid_t Waitpid(pid_t pid, int *iptr, int options); 
 pid_t jid2pid(int jid);
 
@@ -194,21 +195,28 @@ void eval(char *cmdline) {
     /* If not a builtin command ... */
     if (!builtin_cmd(argv)) {
         
-        /* Avoid race condition. Block sigchld signal until after addjobs(). */
-        sigset_t mask, prev;
-        Sigemptyset(&mask);
-        Sigaddset(&mask, SIGCHLD);
-        Sigprocmask(SIG_BLOCK, &mask, &prev);
+        // Protect global data structure jobs list while its being updated. 
+        // Enure no signals interfere until child has created its own pgrp.
+        //sigset_t mask_all, prev_all; // prev_all necessary?
+        //Sigfillset(&mask_all);
+        //Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+        
+        // Is below necessary. Above covers it?
+        // Avoid race condition. Block sigchld signal until after addjobs(). 
+        sigset_t mask_chld, prev_chld;
+        Sigemptyset(&mask_chld);
+        Sigaddset(&mask_chld, SIGCHLD);
+        Sigprocmask(SIG_BLOCK, &mask_chld, &prev_chld);
 
         /* ... fork child process ... */
         pid_t pid;
         if((pid = Fork()) == 0) {
             
-            /* Unblock SIGCHLD in child process*/
-            Sigprocmask(SIG_SETMASK, &prev, NULL);
-
-            /* Ensure only one process in the foreground process group. */
             setpgid(0,0);
+            // Unblock all signals now that  child has its own pgrp.
+            //Sigprocmask(SIG_SETMASK, &prev_all, NULL);
+            /* Unblock SIGCHLD in child process*/
+            Sigprocmask(SIG_SETMASK, &prev_chld, NULL);
 
             /* ... and use exec func to run user's job. */ 
             if (execve(argv[0], argv, environ) < 0) {
@@ -220,8 +228,9 @@ void eval(char *cmdline) {
         /* Add job to jobs list. */
         addjob(jobs, pid, bg ? BG : FG, cmdline);
         
-        /* Unblock SIGCHLD now that job has been added to jobs list. */
-        Sigprocmask(SIG_SETMASK, &prev, NULL);
+        // Unblock all signals now that job has been added to jobs list.
+        //Sigprocmask(SIG_SETMASK, &prev_all, NULL);
+        Sigprocmask(SIG_SETMASK, &prev_chld, NULL);
         
         /* Parent waits for foreground job to terminate. */
         if (!bg) {
@@ -760,6 +769,15 @@ void Sigemptyset(sigset_t *set) {
     return;
 }
 
+
+/*
+ * sigfillset() with error handling, as per the book.
+ */
+void Sigfillset(sigset_t * set) {
+    if(sigfillset(set) < 0) {
+        unix_error("Sigfillset error");
+    }
+}
 
 
 /*
