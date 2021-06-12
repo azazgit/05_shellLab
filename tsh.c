@@ -444,12 +444,65 @@ void waitfg(pid_t pid) {
  *     currently running children to terminate.  
  */
 void sigchld_handler(int sig) {
+
+    /*
+    int olderrno = errno;
+    
+    sigset_t mask_all, prev_all;
+    Sigfillset(&mask_all);
+
+    pid_t pid;
+    int status;
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+        
+        // if ctrl-c: SIGINT killed the child.
+        if (WIFSIGNALED(status)) {
+            
+            int jid = pid2jid(pid);
+            deletejob(jobs, pid);
+            
+            // Job [1] (684115) terminated by signal 2
+            printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
+        }
+
+        // if ctrl-z: SIGTSTP OR SIGSTOP stopped the child.
+        if (WIFSTOPPED(status)) {
+            
+            // Get the pid of fg job. 
+            pid_t pid = fgpid(jobs);
+    
+            // Update fg job's status to ST [stopped]. 
+            struct job_t * job;
+            job = getjobpid(jobs, pid);
+            job->state = ST;
+            
+            // Job [2] (684321) stopped by signal 20
+            int jid = pid2jid(pid);
+            printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
+        }
+
+        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
+    }
+    if(errno != ECHILD) {
+        printf("waitpid error.");
+    }
+
+    errno = olderrno;
+    */
+    int olderrno = errno;
+    sigset_t mask_all, prev_all;
+    Sigfillset(&mask_all);
+    
     pid_t pid;
     int status;
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
         deletejob(jobs, pid);
+        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     }
+    errno = olderrno;
 }
 
 
@@ -460,14 +513,23 @@ void sigchld_handler(int sig) {
  */
 void sigint_handler(int sig) {
 
-    /* Send SIGINT sig to fg job. Job's deleted when parent handles sigchld. */
+    int olderrno = errno;
+    
+    sigset_t mask_all, prev_all;
+    Sigfillset(&mask_all);
+    Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+    
+    // Send SIGINT sig to fg job. Job's deleted when parent handles sigchld.
     pid_t pid = fgpid(jobs);
     kill(-pid, SIGINT);
     
     // Job [1] (684115) terminated by signal 2
     int jid = pid2jid(pid);
     printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
+    
+    Sigprocmask(SIG_SETMASK, &prev_all, NULL);
 
+    errno = olderrno;
 }
 
 
@@ -478,21 +540,30 @@ void sigint_handler(int sig) {
  */
 void sigtstp_handler(int sig) {
 
-    /* Get the pid of fg job. */
+    int olderrno = errno;
+    
+    sigset_t mask_all, prev_all;
+    Sigfillset(&mask_all);
+    Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+    
+    // Get the pid of fg job. 
     pid_t pid = fgpid(jobs);
     
-    /* Update fg job's status to ST [stopped]. */
+    // Update fg job's status to ST [stopped].
     struct job_t * job;
     job = getjobpid(jobs, pid);
     job->state = ST;
     
-    /* Send SIGTSTP signal to process group of fg job. */
+    // Send SIGTSTP signal to process group of fg job. 
     kill(-pid, SIGTSTP);
 
     // Job [2] (684321) stopped by signal 20
     int jid = pid2jid(pid);
     printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
+    
+    Sigprocmask(SIG_SETMASK, &prev_all, NULL);
 
+    errno = olderrno;
 }
 
 /*********************
