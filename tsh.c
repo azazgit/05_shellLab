@@ -490,6 +490,25 @@ void sigchld_handler(int sig) {
 
     errno = olderrno;
     */
+
+    int olderrno = errno;
+    sigset_t mask_all, prev_all;
+    Sigfillset(&mask_all);
+    
+    pid_t pid;
+    int status;
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+       /* if (WIFSIGNALED(status)) {
+            printf("sigint signal\n");
+        } */
+        deletejob(jobs, pid);
+        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
+    }
+    errno = olderrno;
+
+    /* Below code works.
     int olderrno = errno;
     sigset_t mask_all, prev_all;
     Sigfillset(&mask_all);
@@ -502,7 +521,7 @@ void sigchld_handler(int sig) {
         deletejob(jobs, pid);
         Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     }
-    errno = olderrno;
+    errno = olderrno;*/
 }
 
 
