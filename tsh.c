@@ -328,18 +328,6 @@ int builtin_cmd(char **argv) {
         return 1;
     }
     
-   /* 
-    else if (!strcmp(argv[0], "fg")){ // fg command
-        do_bgfg(argv);
-        return 1;
-    }
-    
-
-    else if (!strcmp(argv[0], "bg")){ // bg command 
-        do_bgfg(argv);
-        return 1;
-    }*/
-
     return 0; // Not a builtin command 
 }
 
@@ -428,8 +416,13 @@ void do_bgfg(char **argv) {
 void waitfg(pid_t pid) { 
     
     struct job_t * job = getjobpid(jobs, pid);
-    while (job->state == FG) {
-        sleep(1);
+    // Ensure job exists and has not been deleted already.
+    // This can happen if sigchld kicks in before parent starts
+    // waiting for child to finish.
+    if (job) {
+        while (job->state == FG) {
+            sleep(1);
+        }
     }
     return;
 }
