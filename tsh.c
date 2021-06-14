@@ -337,10 +337,7 @@ int builtin_cmd(char **argv) {
  */
 void do_bgfg(char **argv) {
 
-    // Is it a fg or bg job?
-    int bg = strcmp(argv[0], "bg") ? 0 : 1;;
-    
-    // Check argv[1]. Is arg 2 provided?
+    // =========== Check argv[1] for valid pid/jid. ==========
     char * argv1ptr = argv[1];
     if (!argv1ptr) {
         printf("%s command requires PID or %%jobid argument\n", argv[0]);
@@ -380,30 +377,92 @@ void do_bgfg(char **argv) {
         printf("%s: argument must be a PID or %%jobid\n", argv[0]);
         return;
     }
+    // =========== END: Check argv[1] for valid pid/jid. ==========
 
-    /* Update jobs list. */
-    if (!bg) { /* This is a fg job.*/
+    // =========== Update jobs based on fg / bg job.  ==========
     
-        /* If currently there is a fg job. */
-        pid_t fgJobPid = fgpid(jobs); 
-        if (fgJobPid) {
-            struct job_t * fgJob = getjobpid(jobs, fgJobPid);
-            fgJob->state = BG; 
-            thisJob->state = FG;
-        }
-        else { 
-            thisJob->state = FG; 
-        }
+    /* Implementation notes:
+        argv[0]     |           fg              |   bg      
+     ---------------|---------------------------|------------
+     thisjob->state |                           |
+            FG      |         error_fg          |   error_fg
+            BG      |       update_bg2fg        | update_none
+            ST      |       update_st2fg        | update_st2bg
+            UNDEF   |   error_fg & error_undef  | error_undef
+
+    error_fg:       If there is a fg job running tsh must wait for it to 
+                    finish. If tsh read an instruction from shell, then an 
+                    error must have occured. Either there is inconsistent data 
+                    in jobs, or waitfg() is not waiting for fg job to finish.
+
+    update_bg2fg:   Run bg job in fg. Change its state to FG. Must use waitfg() 
+                    here because logic goes: eval() -> builtin_cmd -> do_fgbg 
+                    and never reaches waitfg() in eval for builtin commands. 
+    
+    update_st2fg:   Run stopped job in fg. Change its state to FG.
+                    Send SIGCONT signal to job's process group so all its child
+                    processes receive the signal as well and run.
+                    As above, use waitfg().
+
+    update_none:    Nothing needs to be updated. This job was already running 
+                    in bg when tsh processed instruction to run it in bg.
+    
+    update_st2bg:   run stopped job in bg. Change its state to BG. As above 
+                    send SIGCONT to job's process group.
+
+    error_undef:    An existing job must not have UNDEF state.
+
+     */ 
+    
+    
+    int bg = strcmp(argv[0], "bg") ? 0 : 1;;
+    sigset_t mask_all, prev_all;
+    Sigfillset(&mask_all);
+
+    if (!bg) { //fg job.
         
-        waitfg(pid); /* Parent waits for foreground job to terminate. */
+        switch(thisJob->state) {
+            case FG:
+                unix_error("tsh not waiting for existing FG job to end.\n");
+                break;
+            case BG:
+                thisJob->state = FG;
+                waitfg(pid); /* Parent waits for fg job to terminate. */
+                break;
+            case ST:
+                thisJob->state = FG;
+                kill(-pid, SIGCONT);       
+                waitfg(pid); /* Parent waits for fg job to terminate. */
+                break;
+            case UNDEF:
+                unix_error("Existing job with UNDEF state.\n");
+                break;
+            default:
+                unix_error("Inconsistent state in job");
+                break;
+        }
     }
-    else { /* This is a bg job. */
-        thisJob->state = BG;
-        printf("[%d] (%d) %s", thisJob->jid, thisJob->pid, thisJob->cmdline);
+    else { // bg job.
+        switch(thisJob->state) {
+            case FG:
+                unix_error("tsh not waiting for existing FG job to end.\n");
+                break;
+            case BG:
+                break;
+            case ST:
+                thisJob->state = BG;
+                kill(-pid, SIGCONT);
+                printf("[%d] (%d) %s", thisJob->jid, thisJob->pid, thisJob->cmdline);
+                break;
+            case UNDEF:
+                unix_error("Existing job with UNDEF state.\n");
+                break;
+            default:
+                unix_error("Inconsistent state in job.");
+                break;
+        }
     }
-    
-    /* Send SIGCONT signal to job. */
-    kill(pid, SIGCONT);
+    return;
 }
 
 
