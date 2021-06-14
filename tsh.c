@@ -195,27 +195,23 @@ void eval(char *cmdline) {
     /* If not a builtin command ... */
     if (!builtin_cmd(argv)) {
         
-        // Protect global data structure jobs list while its being updated. 
-        // Enure no signals interfere until child has created its own pgrp.
-        //sigset_t mask_all, prev_all; // prev_all necessary?
-        //Sigfillset(&mask_all);
-        //Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-        
-        // Is below necessary. Above covers it?
-        // Avoid race condition. Block sigchld signal until after addjobs(). 
-        sigset_t mask_chld, prev_chld;
+        sigset_t mask_all, prev_all;// For masking all signals.
+        sigset_t mask_chld, prev_chld;// For masking just sigchld signals.
+        Sigfillset(&mask_all);
         Sigemptyset(&mask_chld);
         Sigaddset(&mask_chld, SIGCHLD);
+        
+        // Avoid race condition. Block sigchld signal until after addjobs(). 
         Sigprocmask(SIG_BLOCK, &mask_chld, &prev_chld);
-
-        /* ... fork child process ... */
         pid_t pid;
         if((pid = Fork()) == 0) {
             
+            // Enure no signals interfere until child has created its own pgrp.
+            //Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
             setpgid(0,0);
-            // Unblock all signals now that  child has its own pgrp.
             //Sigprocmask(SIG_SETMASK, &prev_all, NULL);
-            /* Unblock SIGCHLD in child process*/
+            
+            // Unblock SIGCHLD in child process.
             Sigprocmask(SIG_SETMASK, &prev_chld, NULL);
 
             /* ... and use exec func to run user's job. */ 
@@ -225,11 +221,11 @@ void eval(char *cmdline) {
             }
         }
         
-        /* Add job to jobs list. */
+        // Block all signals until after jobs is updated. 
+        Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
         addjob(jobs, pid, bg ? BG : FG, cmdline);
-        
-        // Unblock all signals now that job has been added to jobs list.
-        //Sigprocmask(SIG_SETMASK, &prev_all, NULL);
+        int jid = pid2jid(pid);
+        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
         Sigprocmask(SIG_SETMASK, &prev_chld, NULL);
         
         /* Parent waits for foreground job to terminate. */
@@ -237,14 +233,9 @@ void eval(char *cmdline) {
             waitfg(pid);
         }
         else {
-            
-            struct job_t * job;  
-            job = getjobpid(jobs, pid);
-            printf("[%d] (%d) %s", job->jid, job->pid, cmdline);
-            
+            printf("[%d] (%d) %s", jid, pid, cmdline);
         }
     }
-    
     return;
 }
 
@@ -322,22 +313,34 @@ int builtin_cmd(char **argv) {
         exit(0);
     }
     
-    else if (!strcmp(argv[0], "jobs")){ /* jobs command */
+    else if (!strcmp(argv[0], "jobs")){ // jobs command.
+        // Block all signals while working on global var jobs.
+        sigset_t mask, prev;
+        Sigprocmask(SIG_BLOCK, &mask, &prev);
         listjobs(jobs);
+        Sigprocmask(SIG_SETMASK, &prev, NULL);
+        return 1;
+    }
+
+    // fg or bg command.
+    else if ((!strcmp(argv[0], "fg")) || (!strcmp(argv[0], "bg"))){
+        do_bgfg(argv);
         return 1;
     }
     
-    else if (!strcmp(argv[0], "fg")){ /* fg command */
+   /* 
+    else if (!strcmp(argv[0], "fg")){ // fg command
         do_bgfg(argv);
         return 1;
     }
+    
 
-    else if (!strcmp(argv[0], "bg")){ /* bg command */
+    else if (!strcmp(argv[0], "bg")){ // bg command 
         do_bgfg(argv);
         return 1;
-    }
+    }*/
 
-    return 0;     /* not a builtin command */
+    return 0; // Not a builtin command 
 }
 
 
