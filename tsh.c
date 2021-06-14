@@ -339,46 +339,43 @@ void do_bgfg(char **argv) {
 
     // Is it a fg or bg job?
     int bg = strcmp(argv[0], "bg") ? 0 : 1;;
-    /*if (!strcmp(argv[0], "bg")) {bg = 1;}
-    else {bg = 0;}*/
     
-    /* Check argv[1]. Is arg 2 provided? */
-    if (!argv[1]) {
+    // Check argv[1]. Is arg 2 provided?
+    char * argv1ptr = argv[1];
+    if (!argv1ptr) {
         printf("%s command requires PID or %%jobid argument\n", argv[0]);
         return;
     }
 
-    /* Arg 2 is provided. Is it a valid pid, jid or neither? */
     struct job_t * thisJob; 
     int jid;
     pid_t pid;
     
-    /* If arg 2 is a jid. */
-    char char1 = *argv[1]; /* 1st char of arg 2. */
-    if (char1 == '%') {
+    // Arg 2 is a jid.
+    if (*argv1ptr == '%') {
             
-        /* Check that jid exists in jobs list. */
-        char * jidPtr = (argv[1] + 1 * sizeof(char));
-        jid = atoi(jidPtr);
+        // Check that jid exists in jobs list.
+        jid = atoi(++argv1ptr);
         thisJob = getjobjid(jobs, jid);
-        if (!thisJob) { /* jid not valid. */
+        if (!thisJob) { // jid not valid.
             printf("%s: No such job\n", argv[1]);
             return;
         }
-        pid = thisJob->pid; /* needed for kill() later. */
+        pid = thisJob->pid; // Needed for kill() later.
     } 
-    /* Else if arg 2 is pid, find the job with this pid. */
-    else if (isdigit(char1)) { /* pids start with 1-9 */
+
+    // Arg 2 is pid.
+    else if (isdigit(*argv1ptr)) { // pid starts with 1-9.
         
-        /* Check that pid exists in jobs list. */
+        // Check that pid exists in jobs list.
         pid = atoi(argv[1]);
         thisJob = getjobpid(jobs, pid);
-        if(!thisJob) { /* pid not valid. */
+        if(!thisJob) { // pid not valid.
              printf("(%s): No such process\n", argv[1]);
              return;
         }
     }
-    /* Otherwise, arg 2 is neither a pid or jid. */
+    // Otherwise, arg 2 is neither a pid or jid.
     else {
         printf("%s: argument must be a PID or %%jobid\n", argv[0]);
         return;
