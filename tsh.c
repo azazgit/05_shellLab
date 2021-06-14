@@ -337,10 +337,10 @@ int builtin_cmd(char **argv) {
  */
 void do_bgfg(char **argv) {
 
-    /* Check argv[0]. Is it a fg or bg job? */
-    int bg;
-    if (!strcmp(argv[0], "bg")) {bg = 1;}
-    else {bg = 0;}
+    // Is it a fg or bg job?
+    int bg = strcmp(argv[0], "bg") ? 0 : 1;;
+    /*if (!strcmp(argv[0], "bg")) {bg = 1;}
+    else {bg = 0;}*/
     
     /* Check argv[1]. Is arg 2 provided? */
     if (!argv[1]) {
