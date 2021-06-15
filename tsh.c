@@ -508,7 +508,6 @@ void waitfg(pid_t pid) {
  */
 void sigchld_handler(int sig) {
 
-    /*
     int olderrno = errno;
     
     sigset_t mask_all, prev_all;
@@ -552,8 +551,8 @@ void sigchld_handler(int sig) {
     }
 
     errno = olderrno;
-    */
-
+    
+    /*
     int olderrno = errno;
     sigset_t mask_all, prev_all;
     Sigfillset(&mask_all);
@@ -563,14 +562,14 @@ void sigchld_handler(int sig) {
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-       /* if (WIFSIGNALED(status)) {
+        if (WIFSIGNALED(status)) {
             printf("sigint signal\n");
-        } */
+        }
         deletejob(jobs, pid);
         Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     }
     errno = olderrno;
-
+    */
     /* Below code works.
     int olderrno = errno;
     sigset_t mask_all, prev_all;
@@ -603,15 +602,18 @@ void sigint_handler(int sig) {
     
     // Send SIGINT sig to fg job. Job's deleted when parent handles sigchld.
     pid_t pid = fgpid(jobs);
-    kill(-pid, SIGINT);
+
+    if (pid) { // if pid = 0, then there is no fg job. Ignore.
+        kill(-pid, SIGINT);
     
-    // Job [1] (684115) terminated by signal 2
-    int jid = pid2jid(pid);
-    printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
+        // Job [1] (684115) terminated by signal 2
+        int jid = pid2jid(pid);
+        printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
+    }
     
     Sigprocmask(SIG_SETMASK, &prev_all, NULL);
-
     errno = olderrno;
+    return;
 }
 
 
