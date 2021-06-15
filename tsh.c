@@ -515,9 +515,8 @@ void sigchld_handler(int sig) {
 
     pid_t pid;
     int status;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
         Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-        
         
         if (WIFEXITED(status)) {
             deletejob(jobs, pid);
@@ -550,44 +549,9 @@ void sigchld_handler(int sig) {
 
         Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     }
-    if(errno != ECHILD) {
-        printf("waitpid error.");
-    }
 
     errno = olderrno;
-    
-    /*
-    int olderrno = errno;
-    sigset_t mask_all, prev_all;
-    Sigfillset(&mask_all);
-    
-    pid_t pid;
-    int status;
-
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-        if (WIFSIGNALED(status)) {
-            printf("sigint signal\n");
-        }
-        deletejob(jobs, pid);
-        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
-    }
-    errno = olderrno;
-    */
-    /* Below code works.
-    int olderrno = errno;
-    sigset_t mask_all, prev_all;
-    Sigfillset(&mask_all);
-    
-    pid_t pid;
-    int status;
-
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-        deletejob(jobs, pid);
-        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
-    }
-    errno = olderrno;*/
+    return;
 }
 
 
@@ -604,9 +568,9 @@ void sigint_handler(int sig) {
     Sigfillset(&mask_all);
     Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
     
-    // Send SIGINT sig to fg job. Job's deleted when parent handles sigchld.
+    // Send SIGINT sig to process grp of fg job.
     pid_t pid = fgpid(jobs);
-    if (pid) { // if pid = 0, then there is no fg job. Ignore.
+    if (pid) { // If pid = 0, then there is no fg job. Ignore.
         kill(-pid, SIGINT);
     }
     
@@ -631,7 +595,7 @@ void sigtstp_handler(int sig) {
     
     // Send SIGTSTP signal to process group of fg job. 
     pid_t pid = fgpid(jobs);
-    if (pid) {
+    if (pid) { // Ignore bg jobs.
         kill(-pid, SIGTSTP);
     }
 
