@@ -491,6 +491,9 @@ void waitfg(pid_t pid) {
             sleep(1);
         }
     }
+    if (verbose) {
+        printf("waitfg: Process (%d) no longer the fg process\n", pid);
+    }
     return;
 }
 
@@ -507,7 +510,9 @@ void waitfg(pid_t pid) {
  *     currently running children to terminate.  
  */
 void sigchld_handler(int sig) {
-
+    
+    if (verbose) {printf("sigchld_handler: entering\n");}
+    
     int olderrno = errno;
     
     sigset_t mask_all, prev_all;
@@ -517,20 +522,26 @@ void sigchld_handler(int sig) {
     int status;
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
         Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-        
+        int jid = pid2jid(pid);
+
         if (WIFEXITED(status)) {
             deletejob(jobs, pid);
-            // add verbose print here.
+            if (verbose) {
+                printf("sigchld_handler: Job [%d] (%d) deleted\n", jid, pid);
+                printf("sigchld_handler: Job [%d] (%d) terminates OK "
+                        "(status %d)\n", jid, pid, WEXITSTATUS(status));
+            }
         }
 
         // if ctrl-c: SIGINT killed the child.
         else if (WIFSIGNALED(status)) {
             int jid = pid2jid(pid);
             deletejob(jobs, pid);
-            
-            //add verbose print here.
-            // Job [1] (684115) terminated by signal 2
-            printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
+            if (verbose) {
+                printf("sigchld_handler: Job [%d] (%d) deleted\n", jid, pid);
+            }
+            printf("Job [%d] (%d) terminated by signal %d\n", 
+                    jid, pid, WTERMSIG(status));
         }
 
         // if ctrl-z: SIGTSTP OR SIGSTOP stopped the child.
@@ -544,13 +555,14 @@ void sigchld_handler(int sig) {
             
             // Job [2] (684321) stopped by signal 20
             int jid = pid2jid(pid);
-            printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
+            printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, 
+                    WSTOPSIG(status));
         }
-
-        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     }
-
+    
+    if (verbose) {printf("sigchld_handler: exiting\n");}
     errno = olderrno;
+    Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     return;
 }
 
@@ -568,12 +580,18 @@ void sigint_handler(int sig) {
     Sigfillset(&mask_all);
     Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
     
+    if (verbose) {printf("sigint_handler: entering\n");}
+
     // Send SIGINT sig to process grp of fg job.
     pid_t pid = fgpid(jobs);
     if (pid) { // If pid = 0, then there is no fg job. Ignore.
         kill(-pid, SIGINT);
+        if (verbose) {
+            printf("sigint_handler: Job (%d) killed\n", pid);
+        }
     }
-    
+
+    if (verbose) {printf("sigint_handler: exiting\n");}
     Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     errno = olderrno;
     return;
@@ -593,11 +611,18 @@ void sigtstp_handler(int sig) {
     Sigfillset(&mask_all);
     Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
     
+    if (verbose) {printf("sigtstp_handler: entering\n");}
+    
     // Send SIGTSTP signal to process group of fg job. 
     pid_t pid = fgpid(jobs);
     if (pid) { // Ignore bg jobs.
+        int jid = pid2jid(pid);
         kill(-pid, SIGTSTP);
+        if (verbose) {printf("sigint_handler: Job [%d] (%d) stopped\n",
+                jid, pid);
+        }
     }
+    if (verbose) {printf("sigtstp_handler: exiting\n");}
 
     Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     errno = olderrno;
