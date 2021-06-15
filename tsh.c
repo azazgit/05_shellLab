@@ -518,23 +518,27 @@ void sigchld_handler(int sig) {
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
         
+        
+        if (WIFEXITED(status)) {
+            deletejob(jobs, pid);
+            // add verbose print here.
+        }
+
         // if ctrl-c: SIGINT killed the child.
-        if (WIFSIGNALED(status)) {
-            
+        else if (WIFSIGNALED(status)) {
             int jid = pid2jid(pid);
             deletejob(jobs, pid);
             
+            //add verbose print here.
             // Job [1] (684115) terminated by signal 2
             printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
         }
 
         // if ctrl-z: SIGTSTP OR SIGSTOP stopped the child.
-        if (WIFSTOPPED(status)) {
+        else if (WIFSTOPPED(status)) {
             
-            // Get the pid of fg job. 
-            pid_t pid = fgpid(jobs);
-    
             // Update fg job's status to ST [stopped]. 
+            pid_t pid = fgpid(jobs);
             struct job_t * job;
             job = getjobpid(jobs, pid);
             job->state = ST;
@@ -602,13 +606,8 @@ void sigint_handler(int sig) {
     
     // Send SIGINT sig to fg job. Job's deleted when parent handles sigchld.
     pid_t pid = fgpid(jobs);
-
     if (pid) { // if pid = 0, then there is no fg job. Ignore.
         kill(-pid, SIGINT);
-    
-        // Job [1] (684115) terminated by signal 2
-        int jid = pid2jid(pid);
-        printf("Job [%d] (%d) terminated by signal %d\n", jid, pid, sig);
     }
     
     Sigprocmask(SIG_SETMASK, &prev_all, NULL);
@@ -630,22 +629,10 @@ void sigtstp_handler(int sig) {
     Sigfillset(&mask_all);
     Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
     
-    // Get the pid of fg job. 
+    // Send SIGTSTP signal to process group of fg job. 
     pid_t pid = fgpid(jobs);
-
     if (pid) {
-        
-        // Update fg job's status to ST [stopped].
-        struct job_t * job;
-        job = getjobpid(jobs, pid);
-        job->state = ST;
-    
-        // Send SIGTSTP signal to process group of fg job. 
         kill(-pid, SIGTSTP);
-
-        // Job [2] (684321) stopped by signal 20
-        int jid = pid2jid(pid);
-        printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
     }
 
     Sigprocmask(SIG_SETMASK, &prev_all, NULL);
