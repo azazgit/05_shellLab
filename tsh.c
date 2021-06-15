@@ -336,26 +336,32 @@ int builtin_cmd(char **argv) {
  * do_bgfg - Execute the builtin bg and fg commands
  */
 void do_bgfg(char **argv) {
-
-    // =========== Check argv[1] for valid pid/jid. ==========
-    char * argv1ptr = argv[1];
-    if (!argv1ptr) {
-        printf("%s command requires PID or %%jobid argument\n", argv[0]);
-        return;
-    }
-
+    
+    sigset_t mask_all, prev_all;
+    Sigfillset(&mask_all);
+    
     struct job_t * thisJob; 
     int jid;
     pid_t pid;
     
+    // =========== Check argv[1] for valid pid/jid. ==========
+    if (!argv[1]) {
+        printf("%s command requires PID or %%jobid argument\n", argv[0]);
+        return;
+    }
+    
+    char * argv1ptr = argv[1];
+    Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+    
     // Arg 2 is a jid.
     if (*argv1ptr == '%') {
-            
+        
         // Check that jid exists in jobs list.
-        jid = atoi(++argv1ptr);
+        jid = atoi(++argv1ptr);    
         thisJob = getjobjid(jobs, jid);
         if (!thisJob) { // jid not valid.
             printf("%s: No such job\n", argv[1]);
+            Sigprocmask(SIG_SETMASK, &prev_all, NULL);
             return;
         }
         pid = thisJob->pid; // Needed for kill() later.
@@ -366,22 +372,26 @@ void do_bgfg(char **argv) {
         
         // Check that pid exists in jobs list.
         pid = atoi(argv[1]);
+
+        //Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
         thisJob = getjobpid(jobs, pid);
         if(!thisJob) { // pid not valid.
              printf("(%s): No such process\n", argv[1]);
+             Sigprocmask(SIG_SETMASK, &prev_all, NULL);
              return;
         }
+        //Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     }
     // Otherwise, arg 2 is neither a pid or jid.
     else {
         printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+        Sigprocmask(SIG_SETMASK, &prev_all, NULL);
         return;
     }
-    // =========== END: Check argv[1] for valid pid/jid. ==========
+    // =========== END: Check argv[1] for valid pid/jid.    ==========
 
-    // =========== Update jobs based on fg / bg job.  ==========
-    
-    /* Implementation notes:
+    /* =========== Update jobs based on fg / bg job.        ==========
+     Implementation notes:
         argv[0]     |           fg              |   bg      
      ---------------|---------------------------|------------
      thisjob->state |                           |
@@ -411,27 +421,25 @@ void do_bgfg(char **argv) {
                     send SIGCONT to job's process group.
 
     error_undef:    An existing job must not have UNDEF state.
+    */ 
 
-     */ 
-    
-    
-    int bg = strcmp(argv[0], "bg") ? 0 : 1;;
-    sigset_t mask_all, prev_all;
-    Sigfillset(&mask_all);
-
-    if (!bg) { //fg job.
+    if (strcmp(argv[0], "bg")) { //fg job.
         
         switch(thisJob->state) {
             case FG:
                 unix_error("tsh not waiting for existing FG job to end.\n");
                 break;
             case BG:
+                //Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
                 thisJob->state = FG;
+                Sigprocmask(SIG_SETMASK, &prev_all, NULL);
                 waitfg(pid); /* Parent waits for fg job to terminate. */
                 break;
             case ST:
+                //Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
                 thisJob->state = FG;
                 kill(-pid, SIGCONT);       
+                Sigprocmask(SIG_SETMASK, &prev_all, NULL);
                 waitfg(pid); /* Parent waits for fg job to terminate. */
                 break;
             case UNDEF:
@@ -450,9 +458,11 @@ void do_bgfg(char **argv) {
             case BG:
                 break;
             case ST:
+                //Sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
                 thisJob->state = BG;
                 kill(-pid, SIGCONT);
                 printf("[%d] (%d) %s", thisJob->jid, thisJob->pid, thisJob->cmdline);
+                //Sigprocmask(SIG_SETMASK, &prev_all, NULL);
                 break;
             case UNDEF:
                 unix_error("Existing job with UNDEF state.\n");
@@ -462,6 +472,7 @@ void do_bgfg(char **argv) {
                 break;
         }
     }
+    Sigprocmask(SIG_SETMASK, &prev_all, NULL);
     return;
 }
 
