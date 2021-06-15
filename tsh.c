@@ -632,22 +632,25 @@ void sigtstp_handler(int sig) {
     
     // Get the pid of fg job. 
     pid_t pid = fgpid(jobs);
-    
-    // Update fg job's status to ST [stopped].
-    struct job_t * job;
-    job = getjobpid(jobs, pid);
-    job->state = ST;
-    
-    // Send SIGTSTP signal to process group of fg job. 
-    kill(-pid, SIGTSTP);
 
-    // Job [2] (684321) stopped by signal 20
-    int jid = pid2jid(pid);
-    printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
+    if (pid) {
+        
+        // Update fg job's status to ST [stopped].
+        struct job_t * job;
+        job = getjobpid(jobs, pid);
+        job->state = ST;
     
+        // Send SIGTSTP signal to process group of fg job. 
+        kill(-pid, SIGTSTP);
+
+        // Job [2] (684321) stopped by signal 20
+        int jid = pid2jid(pid);
+        printf("Job [%d] (%d) stopped by signal %d\n", jid, pid, sig);
+    }
+
     Sigprocmask(SIG_SETMASK, &prev_all, NULL);
-
     errno = olderrno;
+    return;
 }
 
 /*********************
